@@ -1,0 +1,1 @@
+# Tropical Corner Django project

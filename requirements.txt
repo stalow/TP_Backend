@@ -1,0 +1,11 @@
+django>=5.0,<6.0
+psycopg[binary]>=3.1,<4.0
+ariadne>=0.23,<1.0
+ariadne-graphql-modules>=0.7,<1.0
+git+https://github.com/Usama0121/ariadne-jwt.git@master#egg=ariadne-jwt
+gunicorn>=21.0,<23.0
+ariadne_django
+requests
+
+# LLM scoring
+openai>=1.0,<2.0
