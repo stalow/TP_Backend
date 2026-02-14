@@ -1,0 +1,72 @@
+[
+  {
+    "name": "POSTGRES_DB",
+    "value": "tropicalcorner",
+    "slotSetting": false
+  },
+  {
+    "name": "POSTGRES_USER",
+    "value": "lljedzmzgp",
+    "slotSetting": false
+  },
+  {
+    "name": "POSTGRES_PASSWORD",
+    "value": "b8H1Qult$OUGhUb6",
+    "slotSetting": false
+  },
+  {
+    "name": "POSTGRES_HOST",
+    "value": "VOTRE-SERVEUR-POSTGRES.postgres.database.azure.com",
+    "slotSetting": false
+  },
+  {
+    "name": "POSTGRES_PORT",
+    "value": "5432",
+    "slotSetting": false
+  },
+  {
+    "name": "DJANGO_SETTINGS_MODULE",
+    "value": "tropicalcorner.settings.prod",
+    "slotSetting": false
+  },
+  {
+    "name": "DJANGO_SECRET_KEY",
+    "value": "CHANGEZ-CETTE-CLE-SECRETE-EN-PRODUCTION",
+    "slotSetting": false
+  },
+  {
+    "name": "DJANGO_DEBUG",
+    "value": "False",
+    "slotSetting": false
+  },
+  {
+    "name": "DJANGO_ALLOWED_HOSTS",
+    "value": "tropicalcornerapi-atbuftfpamdpatfz.francecentral-01.azurewebsites.net",
+    "slotSetting": false
+  },
+  {
+    "name": "JWT_SECRET_KEY",
+    "value": "CHANGEZ-CETTE-CLE-JWT-EN-PRODUCTION",
+    "slotSetting": false
+  },
+  {
+    "name": "JWT_EXPIRATION_DELTA_MINUTES",
+    "value": "60",
+    "slotSetting": false
+  },
+  {
+    "name": "JWT_REFRESH_EXPIRATION_DAYS",
+    "value": "7",
+    "slotSetting": false
+  },
+  {
+    "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+    "value": "1",
+    "slotSetting": false
+  },
+  {
+    "name": "WEBSITE_HTTPLOGGING_RETENTION_DAYS",
+    "value": "7",
+    "slotSetting": false
+  }
+]
