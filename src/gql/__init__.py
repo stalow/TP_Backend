@@ -1,5 +1,5 @@
 # graphql package
-from ariadne_graphql_modules import make_executable_schema, ObjectType, QueryType, gql
+from ariadne_graphql_modules import make_executable_schema, ObjectType, gql
 
 
 from .types import all_types
@@ -15,13 +15,14 @@ class PingQuery(ObjectType):
     )
 
     @staticmethod
-    def ping(obj, info):
+    def resolve_ping(obj, info):
         return "pong"
 
 
 
 schema_type = [
     *all_types,
+    PingQuery,
 ]
 
 
