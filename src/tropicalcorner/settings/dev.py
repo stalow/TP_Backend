@@ -6,7 +6,7 @@ from .base import *  # noqa: F401, F403
 
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "backend", "10.1.21.49","2ce477f42335.ngrok-free.app"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "backend", "10.1.21.49"]
 
 # CORS for development (frontend on different port)
 CSRF_TRUSTED_ORIGINS = [
