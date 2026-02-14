@@ -1,8 +1,22 @@
 # graphql package
-from ariadne_graphql_modules import make_executable_schema
+from ariadne_graphql_modules import make_executable_schema, ObjectType, QueryType, gql
 
 
 from .types import all_types
+
+
+class PingQuery(ObjectType):
+    __schema__ = gql(
+        '''
+        type Query {
+            ping: String!
+        }
+        '''
+    )
+
+    @staticmethod
+    def ping(obj, info):
+        return "pong"
 
 
 
