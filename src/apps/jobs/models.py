@@ -224,6 +224,7 @@ class JobOpening(models.Model):
         blank=True,
         help_text="Niveau d'expérience souhaité"
     )
+    years_experience_required = models.IntegerField(null=True, blank=True)
 
     # === SECTION 10: Type de contrat (2 choix possibles) ===
     contract_types = models.JSONField(
@@ -274,7 +275,6 @@ class JobOpening(models.Model):
     salary_min = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     salary_max = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     technical_skills = models.JSONField(default=list, blank=True)
-    years_experience_required = models.IntegerField(null=True, blank=True)
     contract_type = models.CharField(max_length=50, null=True, blank=True)
     organization_size = models.CharField(max_length=50, null=True, blank=True)
 

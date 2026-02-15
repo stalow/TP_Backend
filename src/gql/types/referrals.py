@@ -300,6 +300,7 @@ class Query(ObjectType):
     __schema__ = gql(
         '''
         type Query {
+            referral(id: ID!): Referral
             referrals(jobId: ID, status: ReferralStatus, first: Int = 20, after: String): [Referral!]!
             myReferrals(status: ReferralStatus, first: Int = 20, after: String): [Referral!]!
             myRewards: MyRewards!
@@ -313,6 +314,34 @@ class Query(ObjectType):
         DeferredType('ReferralStatus'),
         MyRewardsType,
     ]
+
+    @staticmethod
+    def resolve_referral(obj, info, id):
+        """Get a single referral by ID. Accessible by the referrer or a recruiter of the org."""
+        user = info.context.get("request").user
+        if user is None or not user.is_authenticated:
+            return None
+
+        try:
+            _, db_id = decode_global_id(id)
+        except Exception:
+            return None
+
+        try:
+            referral = Referral.objects.select_related(
+                'candidate', 'job_opening', 'referrer'
+            ).get(id=db_id)
+        except Referral.DoesNotExist:
+            return None
+
+        # Security: referrer can see their own, recruiter can see their org's
+        if referral.referrer_id == user.id:
+            return referral
+        if user.is_recruiter and user.active_organization_id and \
+           referral.job_opening.organization_id == user.active_organization_id:
+            return referral
+
+        return None
 
     @staticmethod
     def resolve_referrals(obj, info, jobId=None, status=None, first=20, after=None):

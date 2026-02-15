@@ -75,6 +75,7 @@ class JobOpeningType(ObjectType):
             
             "Expérience"
             experienceLevel: ExperienceLevel
+            yearsExperienceRequired: Int
             
             "Types de contrat (2 max)"
             contractTypes: [ContractType!]!
@@ -102,7 +103,6 @@ class JobOpeningType(ObjectType):
             sector: String
             salaryMin: Float
             salaryMax: Float
-            yearsExperienceRequired: Int
             contractType: String
         }
         '''
