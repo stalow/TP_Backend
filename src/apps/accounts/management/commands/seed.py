@@ -40,6 +40,7 @@ class Command(BaseCommand):
             },
         )
         recruiter_user.set_password("recruiter123")
+        recruiter_user.is_recruiter = True
         recruiter_user.save()
 
         referrer_user, _ = User.objects.get_or_create(
@@ -50,6 +51,7 @@ class Command(BaseCommand):
             },
         )
         referrer_user.set_password("referrer123")
+        referrer_user.is_referrer = True
         referrer_user.save()
 
         # Create organizations
