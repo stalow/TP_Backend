@@ -25,3 +25,23 @@ SECURE_HSTS_PRELOAD = True
 CSRF_TRUSTED_ORIGINS = [
     f"https://{host}" for host in ALLOWED_HOSTS if host
 ]
+
+# CORS settings
+CORS_ALLOWED_ORIGINS = [
+    "https://mango-rock-0e8765003.4.azurestaticapps.net",
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+# Headers autorisés pour GraphQL
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]

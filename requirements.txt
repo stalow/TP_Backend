@@ -6,6 +6,7 @@ git+https://github.com/Usama0121/ariadne-jwt.git@master#egg=ariadne-jwt
 gunicorn>=21.0,<23.0
 ariadne_django
 requests
+django-cors-headers>=4.3,<5.0
 
 # LLM scoring
 openai>=1.0,<2.0
