@@ -3,15 +3,17 @@ from ariadne_graphql_modules import ObjectType, gql, DeferredType, InputType, co
 from django.utils import timezone
 
 from apps.jobs.models import JobOpening
-from apps.referrals.models import Candidate, Referral, ReferralStatusEvent, RewardOutcome
+from apps.referrals.models import Candidate, Referral, ReferralStatusEvent, RewardOutcome, CandidateConsentToken
 from apps.referrals.services import scrape_linkedin_profile
 from common.errors import TropicalCornerError
+from common.mail_service import send_candidate_consent_email
 from gql.auth import require_auth
 from gql.node import encode_global_id, decode_global_id
 
 
 # Allowed status transitions
 ALLOWED_TRANSITIONS = {
+    "PENDING_CONSENT": {"SUBMITTED", "REJECTED"},   # confirmed → SUBMITTED, declined → REJECTED
     "SUBMITTED": {"REVIEWED", "REJECTED"},
     "REVIEWED": {"ACCEPTED", "REJECTED"},
     "ACCEPTED": {"HIRED", "REJECTED"},
@@ -365,7 +367,7 @@ class Query(ObjectType):
                 ).filter(
                     job_opening_id=db_id,
                     job_opening__organization_id=user.active_organization_id
-                )
+                ).exclude(status=Referral.Status.PENDING_CONSENT)
             else:
                 # Non-recruiter cannot access job applications
                 return []
@@ -397,12 +399,14 @@ class Query(ObjectType):
         if user is None:
             return []
 
-        # If recruiter, show referrals on their org's jobs
+        # If recruiter, show referrals on their org's jobs (excluding pending consent)
         if user.is_recruiter and user.active_organization_id:
             qs = Referral.objects.select_related(
                 'candidate', 'job_opening', 'referrer'
-            ).filter(job_opening__organization_id=user.active_organization_id)
-        # If referrer, show only their own referrals
+            ).filter(
+                job_opening__organization_id=user.active_organization_id
+            ).exclude(status=Referral.Status.PENDING_CONSENT)
+        # If referrer, show only their own referrals (including PENDING_CONSENT so they see the status)
         else:
             qs = Referral.objects.filter(referrer=user)
 
@@ -504,8 +508,6 @@ class Mutation(ObjectType):
     @staticmethod
     def resolve_submit_referral(obj, info, input):
         """Submit a candidate referral."""
-        # tenant_ctx = require_tenant(info)
-        # membership = require_referrer_or_above(tenant_ctx)
         user = info.context.get("request").user
 
         _, job_db_id = decode_global_id(input["jobOpeningId"])
@@ -532,19 +534,26 @@ class Mutation(ObjectType):
         if not interpersonal_skills or len(interpersonal_skills) == 0:
             raise TropicalCornerError("At least one interpersonal skill is required", code="VALIDATION_ERROR")
 
-        # Create or find candidate
+        candidate_email = input.get("candidateEmail", "").strip() or None
+
+        # If candidate has an email → needs consent first (PENDING_CONSENT)
+        # If no email → auto-confirm consent (legacy behaviour)
+        needs_consent = bool(candidate_email)
+        initial_status = Referral.Status.PENDING_CONSENT if needs_consent else Referral.Status.SUBMITTED
+
+        # Create candidate
         candidate = Candidate.objects.create(
             organization=job.organization,
             full_name=input["candidateFullName"].strip(),
-            email=input.get("candidateEmail", "").strip() or None,
+            email=candidate_email,
             linkedin_url=input.get("linkedinUrl", "").strip() or None,
             years_experience=input["yearsExperience"],
             expertise_domain=input["expertiseDomain"],
             search_criteria=search_criteria,
             technical_skills=technical_skills,
             interpersonal_skills=interpersonal_skills,
-            consent_confirmed=input["consentConfirmed"],
-            consent_confirmed_at=timezone.now() if input["consentConfirmed"] else None,
+            consent_confirmed=not needs_consent and input["consentConfirmed"],
+            consent_confirmed_at=timezone.now() if (not needs_consent and input["consentConfirmed"]) else None,
         )
 
         # Scrape LinkedIn profile si une URL est fournie
@@ -559,9 +568,7 @@ class Mutation(ObjectType):
                 candidate.linkedin_scraped_at = timezone.now()
                 candidate.save()
             except Exception as e:
-                # Log l'erreur mais ne bloque pas la création du referral
                 import logging
-
                 logger = logging.getLogger(__name__)
                 logger.error(f"Failed to scrape LinkedIn profile: {e}")
 
@@ -574,17 +581,34 @@ class Mutation(ObjectType):
             relationship_type=input["relationshipType"],
             profile_motivation=input["profileMotivation"].strip(),
             supporting_materials=input.get("supportingMaterials", []),
-            status=Referral.Status.SUBMITTED,
+            status=initial_status,
         )
-        # membership = require_referrer_or_above(job.organization)
+
         # Create initial status event
         ReferralStatusEvent.objects.create(
             organization=job.organization,
             referral=referral,
             from_status=None,
-            to_status=Referral.Status.SUBMITTED,
+            to_status=initial_status,
             changed_by=None,
         )
+
+        # Send consent email if candidate has an email
+        if needs_consent:
+            consent_token = CandidateConsentToken.objects.create(referral=referral)
+            try:
+                send_candidate_consent_email(
+                    candidate_name=candidate.full_name,
+                    candidate_email=candidate.email,
+                    job_title=job.title,
+                    referrer_name=user.display_name or user.email,
+                    organization_name=job.organization.name,
+                    consent_token=str(consent_token.token),
+                )
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to send consent email: {e}")
 
         return referral
 

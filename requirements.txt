@@ -10,3 +10,6 @@ django-cors-headers>=4.3,<5.0
 
 # LLM scoring
 openai>=1.0,<2.0
+
+# Email (Resend)
+resend>=2.0,<3.0

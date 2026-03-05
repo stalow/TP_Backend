@@ -5,6 +5,7 @@ class ReferralStatusEnum(EnumType):
     __schema__ = gql(
         """
         enum ReferralStatus {
+            PENDING_CONSENT
             SUBMITTED
             REVIEWED
             ACCEPTED

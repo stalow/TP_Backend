@@ -1,4 +1,8 @@
+import uuid
+from datetime import timedelta
+
 from django.db import models
+from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.jobs.models import JobOpening
@@ -57,6 +61,7 @@ class Referral(models.Model):
     """
 
     class Status(models.TextChoices):
+        PENDING_CONSENT = "PENDING_CONSENT", "En attente de consentement"
         SUBMITTED = "SUBMITTED", "Submitted"
         REVIEWED = "REVIEWED", "Reviewed"
         ACCEPTED = "ACCEPTED", "Accepted"
@@ -238,3 +243,37 @@ class CandidateScore(models.Model):
 
     def __str__(self) -> str:
         return f"Score {self.final_score} ({self.grade}) for {self.referral}"
+
+
+def _default_consent_expiry():
+    return timezone.now() + timedelta(days=7)
+
+
+class CandidateConsentToken(models.Model):
+    """
+    Token envoyé par email au candidat référé pour qu'il confirme
+    ou décline sa candidature avant qu'elle ne soit visible par le recruteur.
+    """
+
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    referral = models.OneToOneField(
+        Referral, on_delete=models.CASCADE, related_name="consent_token"
+    )
+    expires_at = models.DateTimeField(default=_default_consent_expiry)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    declined_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "candidate_consent_tokens"
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() > self.expires_at
+
+    @property
+    def is_used(self) -> bool:
+        return self.confirmed_at is not None or self.declined_at is not None
+
+    def __str__(self) -> str:
+        return f"ConsentToken {self.token} for {self.referral}"
