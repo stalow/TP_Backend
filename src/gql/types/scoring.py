@@ -16,6 +16,33 @@ from gql.node import encode_global_id, decode_global_id
 from common.permissions import require_recruiter_or_admin
 
 
+def create_score_for_referral(referral, org, use_llm: bool = True) -> "CandidateScore":
+    """
+    Calcule et persiste le score d'un referral.
+    Retourne le CandidateScore créé.
+    """
+    result = compute_candidate_score(referral, use_llm=True)
+
+    score = CandidateScore.objects.create(
+        organization=org,
+        referral=referral,
+        final_score=result.score,
+        rule_score=result.breakdown.rule_score,
+        llm_score=result.breakdown.llm_score,
+        grade=result.grade,
+        expertise_match=result.breakdown.expertise_match,
+        experience_match=result.breakdown.experience_match,
+        interpersonal_skills_match=result.breakdown.interpersonal_skills_match,
+        technical_skills_match=result.breakdown.technical_skills_match,
+        referral_quality=result.breakdown.referral_quality,
+        llm_strengths=result.breakdown.llm_strengths,
+        llm_gaps=result.breakdown.llm_gaps,
+        llm_summary=result.breakdown.llm_summary,
+        llm_model_used=OPENAI_MODEL if use_llm else "",
+    )
+    return score
+
+
 class ScoreBreakdownType(ObjectType):
     """Détail du breakdown du score."""
     
@@ -215,26 +242,7 @@ class ScoringQuery(ObjectType):
             raise TropicalCornerError("Referral not found", code="REFERRAL_NOT_FOUND")
         
         # Compute and save score
-        result = compute_candidate_score(referral, use_llm=True)
-        
-        score = CandidateScore.objects.create(
-            organization=org,
-            referral=referral,
-            final_score=result.score,
-            rule_score=result.breakdown.rule_score,
-            llm_score=result.breakdown.llm_score,
-            grade=result.grade,
-            expertise_match=result.breakdown.expertise_match,
-            experience_match=result.breakdown.experience_match,
-            interpersonal_skills_match=result.breakdown.interpersonal_skills_match,
-            technical_skills_match=result.breakdown.technical_skills_match,
-            referral_quality=result.breakdown.referral_quality,
-            llm_strengths=result.breakdown.llm_strengths,
-            llm_gaps=result.breakdown.llm_gaps,
-            llm_summary=result.breakdown.llm_summary,
-            llm_model_used=OPENAI_MODEL,
-        )
-        
+        score = create_score_for_referral(referral, org, use_llm=True)
         return score
     
     @staticmethod
@@ -347,28 +355,7 @@ class ScoringMutation(ObjectType):
         if existing_score:
             return existing_score
         
-        # Compute score
-        result = compute_candidate_score(referral, use_llm=use_llm)
-        
-        score = CandidateScore.objects.create(
-            organization=org,
-            referral=referral,
-            final_score=result.score,
-            rule_score=result.breakdown.rule_score,
-            llm_score=result.breakdown.llm_score,
-            grade=result.grade,
-            expertise_match=result.breakdown.expertise_match,
-            experience_match=result.breakdown.experience_match,
-            interpersonal_skills_match=result.breakdown.interpersonal_skills_match,
-            technical_skills_match=result.breakdown.technical_skills_match,
-            referral_quality=result.breakdown.referral_quality,
-            llm_strengths=result.breakdown.llm_strengths,
-            llm_gaps=result.breakdown.llm_gaps,
-            llm_summary=result.breakdown.llm_summary,
-            llm_model_used=OPENAI_MODEL if use_llm else "",
-        )
-        
-        return score
+        return create_score_for_referral(referral, org, use_llm=use_llm)
     
     @staticmethod
     def resolve_score_job_referrals(obj, info, input):
@@ -392,26 +379,7 @@ class ScoringMutation(ObjectType):
                 scores.append(existing_score)
                 continue
             
-            # Compute score
-            result = compute_candidate_score(referral, use_llm=use_llm)
-            
-            score = CandidateScore.objects.create(
-                organization=org,
-                referral=referral,
-                final_score=result.score,
-                rule_score=result.breakdown.rule_score,
-                llm_score=result.breakdown.llm_score,
-                grade=result.grade,
-                expertise_match=result.breakdown.expertise_match,
-                experience_match=result.breakdown.experience_match,
-                interpersonal_skills_match=result.breakdown.interpersonal_skills_match,
-                technical_skills_match=result.breakdown.technical_skills_match,
-                referral_quality=result.breakdown.referral_quality,
-                llm_strengths=result.breakdown.llm_strengths,
-                llm_gaps=result.breakdown.llm_gaps,
-                llm_summary=result.breakdown.llm_summary,
-                llm_model_used=OPENAI_MODEL if use_llm else "",
-            )
+            score = create_score_for_referral(referral, org, use_llm=use_llm)
             scores.append(score)
         
         # Return sorted by score
@@ -437,28 +405,7 @@ class ScoringMutation(ObjectType):
         # Delete existing score if any
         CandidateScore.objects.filter(referral=referral).delete()
         
-        # Compute new score
-        result = compute_candidate_score(referral, use_llm=use_llm)
-        
-        score = CandidateScore.objects.create(
-            organization=org,
-            referral=referral,
-            final_score=result.score,
-            rule_score=result.breakdown.rule_score,
-            llm_score=result.breakdown.llm_score,
-            grade=result.grade,
-            expertise_match=result.breakdown.expertise_match,
-            experience_match=result.breakdown.experience_match,
-            interpersonal_skills_match=result.breakdown.interpersonal_skills_match,
-            technical_skills_match=result.breakdown.technical_skills_match,
-            referral_quality=result.breakdown.referral_quality,
-            llm_strengths=result.breakdown.llm_strengths,
-            llm_gaps=result.breakdown.llm_gaps,
-            llm_summary=result.breakdown.llm_summary,
-            llm_model_used=OPENAI_MODEL if use_llm else "",
-        )
-        
-        return score
+        return create_score_for_referral(referral, org, use_llm=use_llm)
 
 
 types = [

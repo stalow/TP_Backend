@@ -10,10 +10,12 @@ Combine:
 import json
 import logging
 import os
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import requests
+from openai import OpenAI, RateLimitError, OpenAIError
 
 from apps.jobs.models import JobOpening
 from apps.referrals.models import Candidate, Referral
@@ -321,65 +323,79 @@ Réponds UNIQUEMENT avec un JSON valide (sans markdown, sans ```):
     return prompt
 
 
+OPENAI_MAX_RETRIES = int(os.environ.get("OPENAI_MAX_RETRIES", "3"))
+OPENAI_RETRY_BASE_DELAY = float(os.environ.get("OPENAI_RETRY_BASE_DELAY", "2.0"))
+
+# Initialisation du client SDK (lit OPENAI_API_KEY depuis l'env)
+_openai_client: Optional[OpenAI] = None
+
+
+def _get_client() -> OpenAI:
+    global _openai_client
+    if _openai_client is None:
+        _openai_client = OpenAI(api_key=OPENAI_API_KEY)
+    return _openai_client
+
+
 def call_openai_api(prompt: str) -> Optional[Dict[str, Any]]:
     """
-    Appelle l'API OpenAI et parse la réponse.
+    Appelle l'API OpenAI (Responses API) et parse la réponse JSON.
+    Retente jusqu'à OPENAI_MAX_RETRIES fois avec backoff exponentiel sur 429.
     """
     if not OPENAI_API_KEY:
         logger.warning("OPENAI_API_KEY not configured, skipping LLM scoring")
         return None
-    
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    
-    payload = {
-        "model": OPENAI_MODEL,
-        "messages": [
-            {
-                "role": "system",
-                "content": "Tu es un expert en recrutement exécutif. Tu réponds uniquement en JSON valide."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        "temperature": 0.3,
-        "max_tokens": 500,
-    }
-    
-    try:
-        response = requests.post(
-            OPENAI_API_URL,
-            headers=headers,
-            json=payload,
-            timeout=30
-        )
-        response.raise_for_status()
-        
-        data = response.json()
-        content = data["choices"][0]["message"]["content"].strip()
-        
-        # Clean potential markdown wrapping
-        if content.startswith("```"):
-            content = content.split("```")[1]
-            if content.startswith("json"):
-                content = content[4:]
-        content = content.strip()
-        
-        return json.loads(content)
-        
-    except requests.RequestException as e:
-        logger.error(f"OpenAI API request failed: {e}")
-        return None
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse LLM response as JSON: {e}")
-        return None
-    except (KeyError, IndexError) as e:
-        logger.error(f"Unexpected OpenAI API response structure: {e}")
-        return None
+
+    for attempt in range(OPENAI_MAX_RETRIES):
+        try:
+            response = _get_client().responses.create(
+                model=OPENAI_MODEL,
+                input=[
+                    {
+                        "role": "system",
+                        "content": "Tu es un expert en recrutement exécutif. Tu réponds uniquement en JSON valide."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+            )
+
+            content = response.output_text.strip()
+
+            # Clean potential markdown wrapping
+            if content.startswith("```"):
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+            content = content.strip()
+
+            return json.loads(content)
+
+        except RateLimitError:
+            retry_after = OPENAI_RETRY_BASE_DELAY * (2 ** attempt)
+            logger.warning(
+                f"OpenAI rate limit hit (attempt {attempt + 1}/{OPENAI_MAX_RETRIES}), "
+                f"retrying in {retry_after:.1f}s"
+            )
+            if attempt < OPENAI_MAX_RETRIES - 1:
+                time.sleep(retry_after)
+                continue
+            else:
+                logger.error("OpenAI rate limit exceeded after all retries, using fallback score")
+                return None
+        except OpenAIError as e:
+            logger.error(f"OpenAI API request failed: {e}")
+            return None
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse LLM response as JSON: {e}")
+            return None
+        except (KeyError, IndexError, AttributeError) as e:
+            logger.error(f"Unexpected OpenAI API response structure: {e}")
+            return None
+
+    return None  # Should not be reached
 
 
 def compute_llm_score(candidate: Candidate, job: JobOpening, referral: Referral) -> Dict[str, Any]:

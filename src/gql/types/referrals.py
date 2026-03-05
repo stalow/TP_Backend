@@ -593,6 +593,18 @@ class Mutation(ObjectType):
             changed_by=None,
         )
 
+        # Compute score immediately after referral creation
+        try:
+            from gql.types.scoring import create_score_for_referral
+            referral_with_relations = Referral.objects.select_related(
+                'candidate', 'job_opening'
+            ).get(id=referral.id)
+            create_score_for_referral(referral_with_relations, job.organization, use_llm=True)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to compute score for referral {referral.id}: {e}")
+
         # Send consent email if candidate has an email
         if needs_consent:
             consent_token = CandidateConsentToken.objects.create(referral=referral)

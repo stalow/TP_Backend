@@ -172,3 +172,86 @@ def send_candidate_consent_email(
         subject=subject,
         html=html,
     )
+
+
+def send_account_activation_email(display_name: str, email: str) -> dict:
+    """
+    Envoie un email à l'utilisateur pour l'informer que son compte a été activé
+    et qu'il peut maintenant se connecter.
+    """
+    frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
+    login_url = f"{frontend_url}/login"
+
+    subject = "Votre compte TropicalCorner a été activé 🎉"
+
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head><meta charset="UTF-8"></head>
+    <body style="margin:0;padding:0;background:#f5f5f5;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 0;">
+        <tr><td align="center">
+          <table width="600" cellpadding="0" cellspacing="0"
+                 style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+            <!-- Header -->
+            <tr>
+              <td style="background:linear-gradient(135deg,#26A69A 0%,#00897B 100%);padding:32px 40px;text-align:center;">
+                <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;">🌴 TropicalCorner</h1>
+              </td>
+            </tr>
+
+            <!-- Body -->
+            <tr>
+              <td style="padding:40px;">
+                <h2 style="color:#333;margin:0 0 16px;font-size:20px;">
+                  Bienvenue, {display_name} ! 🎉
+                </h2>
+
+                <p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 16px;">
+                  Bonne nouvelle : votre compte TropicalCorner vient d'être <strong>activé</strong> par notre équipe.
+                </p>
+
+                <p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 24px;">
+                  Vous pouvez dès maintenant vous connecter et commencer à recommander des talents
+                  ou à publier des offres d'emploi.
+                </p>
+
+                <!-- CTA -->
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+                  <tr><td align="center">
+                    <a href="{login_url}"
+                       style="display:inline-block;background:#26A69A;color:#ffffff;text-decoration:none;
+                              padding:14px 40px;border-radius:50px;font-size:16px;font-weight:700;">
+                      Se connecter
+                    </a>
+                  </td></tr>
+                </table>
+
+                <p style="color:#999;font-size:13px;line-height:1.5;margin:0;">
+                  Si vous n'êtes pas à l'origine de cette inscription, ignorez cet email.
+                </p>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="background:#fafafa;padding:24px 40px;text-align:center;border-top:1px solid #eee;">
+                <p style="color:#aaa;font-size:12px;margin:0;">
+                  © 2026 TropicalCorner · Bienvenue dans la communauté 🌴
+                </p>
+              </td>
+            </tr>
+
+          </table>
+        </td></tr>
+      </table>
+    </body>
+    </html>
+    """
+
+    return send_email(
+        to=email,
+        subject=subject,
+        html=html,
+    )
