@@ -54,7 +54,7 @@ def send_email(
         to = [to]
 
     params: dict = {
-        "from": from_email or getattr(settings, "RESEND_FROM_EMAIL", "onboarding@resend.dev"),
+        "from": from_email or getattr(settings, "RESEND_FROM_EMAIL", "noreply@korumklub.app"),
         "to": to,
         "subject": subject,
         "html": html,
