@@ -29,8 +29,8 @@ CSRF_TRUSTED_ORIGINS = [
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
     "https://mango-rock-0e8765003.4.azurestaticapps.net",
-    "www.korumklub.app",
-    "korumklub.app",
+    "https://www.korumklub.app",
+    "https://korumklub.app",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
