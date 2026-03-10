@@ -2,15 +2,28 @@
 Service d'envoi d'emails via Resend.
 Centralisé ici pour être réutilisé par toutes les apps
 (consentement candidat, inscription, notifications, etc.)
+
+Tous les emails utilisent un template HTML de base commun
+(templates/email_base.html) ; seul le contenu central change.
 """
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 import resend
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+# Chemin du template de base (à côté de ce fichier)
+_BASE_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "email_base.html"
+_DEFAULT_FOOTER = "© 2026 Korum · La cooptation simplifiée 🌴"
+
+
+# ---------------------------------------------------------------------------
+# Helpers internes
+# ---------------------------------------------------------------------------
 
 
 def _get_client():
@@ -22,6 +35,37 @@ def _get_client():
             "Set it in your environment or Django settings."
         )
     resend.api_key = api_key
+
+
+def _render_email(content: str, footer: str | None = None) -> str:
+    """
+    Injecte *content* (HTML) et un *footer* optionnel dans le template
+    de base et renvoie le HTML complet prêt à l'envoi.
+    """
+    template = _BASE_TEMPLATE_PATH.read_text(encoding="utf-8")
+    html = template.replace("{{CONTENT}}", content)
+    html = html.replace("{{FOOTER_TEXT}}", footer or _DEFAULT_FOOTER)
+    return html
+
+
+def _cta_button(href: str, label: str) -> str:
+    """Renvoie le HTML d'un bouton d'appel à l'action centré."""
+    return f"""
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+      <tr><td align="center">
+        <a href="{href}"
+           style="display:inline-block;background:#26A69A;color:#ffffff;text-decoration:none;
+                  padding:14px 40px;border-radius:50px;font-size:16px;font-weight:700;">
+          {label}
+        </a>
+      </td></tr>
+    </table>
+    """
+
+
+# ---------------------------------------------------------------------------
+# Envoi générique
+# ---------------------------------------------------------------------------
 
 
 def send_email(
@@ -91,86 +135,48 @@ def send_candidate_consent_email(
     frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
     consent_url = f"{frontend_url}/confirm-consent/{consent_token}"
 
-    subject = f"{referrer_name} vous a recommandé pour le poste « {job_title} » — {organization_name}"
+    subject = (
+        f"{referrer_name} vous a recommandé pour le poste "
+        f"« {job_title} » — {organization_name}"
+    )
 
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="fr">
-    <head><meta charset="UTF-8"></head>
-    <body style="margin:0;padding:0;background:#f5f5f5;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 0;">
-        <tr><td align="center">
-          <table width="600" cellpadding="0" cellspacing="0"
-                 style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+    content = f"""
+    <h2 style="color:#333;margin:0 0 16px;font-size:20px;">
+      Bonjour {candidate_name} 👋
+    </h2>
 
-            <!-- Header -->
-            <tr>
-              <td style="background:linear-gradient(135deg,#26A69A 0%,#00897B 100%);padding:32px 40px;text-align:center;">
-                <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;">🌴 TropicalCorner</h1>
-              </td>
-            </tr>
+    <p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 16px;">
+      <strong>{referrer_name}</strong> vous a recommandé pour le poste
+      <strong>« {job_title} »</strong> chez <strong>{organization_name}</strong>.
+    </p>
 
-            <!-- Body -->
-            <tr>
-              <td style="padding:40px;">
-                <h2 style="color:#333;margin:0 0 16px;font-size:20px;">
-                  Bonjour {candidate_name} 👋
-                </h2>
+    <p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 24px;">
+      Avant que votre candidature ne soit prise en compte par le recruteur,
+      nous avons besoin de votre accord. Cliquez ci-dessous pour
+      <strong>accepter</strong> ou <strong>décliner</strong> cette proposition.
+    </p>
 
-                <p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 16px;">
-                  <strong>{referrer_name}</strong> vous a recommandé pour le poste
-                  <strong>« {job_title} »</strong> chez <strong>{organization_name}</strong>.
-                </p>
+    {_cta_button(consent_url, "Voir la proposition et choisir")}
 
-                <p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 24px;">
-                  Avant que votre candidature ne soit prise en compte par le recruteur,
-                  nous avons besoin de votre accord. Cliquez ci-dessous pour
-                  <strong>accepter</strong> ou <strong>décliner</strong> cette proposition.
-                </p>
+    <p style="color:#999;font-size:13px;line-height:1.5;margin:0 0 8px;">
+      Ce lien est valable <strong>7 jours</strong>. Si vous ne faites rien,
+      la recommandation sera automatiquement annulée.
+    </p>
 
-                <!-- CTA -->
-                <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
-                  <tr><td align="center">
-                    <a href="{consent_url}"
-                       style="display:inline-block;background:#26A69A;color:#ffffff;text-decoration:none;
-                              padding:14px 40px;border-radius:50px;font-size:16px;font-weight:700;">
-                      Voir la proposition et choisir
-                    </a>
-                  </td></tr>
-                </table>
-
-                <p style="color:#999;font-size:13px;line-height:1.5;margin:0 0 8px;">
-                  Ce lien est valable <strong>7 jours</strong>. Si vous ne faites rien,
-                  la recommandation sera automatiquement annulée.
-                </p>
-
-                <p style="color:#999;font-size:13px;line-height:1.5;margin:0;">
-                  Si vous n'êtes pas la bonne personne, ignorez simplement cet email.
-                </p>
-              </td>
-            </tr>
-
-            <!-- Footer -->
-            <tr>
-              <td style="background:#fafafa;padding:24px 40px;text-align:center;border-top:1px solid #eee;">
-                <p style="color:#aaa;font-size:12px;margin:0;">
-                  © 2026 TropicalCorner · Cet email a été envoyé car quelqu'un
-                  vous a recommandé sur notre plateforme.
-                </p>
-              </td>
-            </tr>
-
-          </table>
-        </td></tr>
-      </table>
-    </body>
-    </html>
+    <p style="color:#999;font-size:13px;line-height:1.5;margin:0;">
+      Si vous n'êtes pas la bonne personne, ignorez simplement cet email.
+    </p>
     """
+
+    footer = (
+        "© 2026 Korum · Cet email a été envoyé car quelqu'un "
+        "vous a recommandé sur notre plateforme."
+    )
 
     return send_email(
         to=candidate_email,
         subject=subject,
-        html=html,
+        html=_render_email(content, footer=footer),
     )
 
 
@@ -182,76 +188,31 @@ def send_account_activation_email(display_name: str, email: str) -> dict:
     frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
     login_url = f"{frontend_url}/login"
 
-    subject = "Votre compte TropicalCorner a été activé 🎉"
+    subject = "Votre compte Korum a été activé 🎉"
 
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="fr">
-    <head><meta charset="UTF-8"></head>
-    <body style="margin:0;padding:0;background:#f5f5f5;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 0;">
-        <tr><td align="center">
-          <table width="600" cellpadding="0" cellspacing="0"
-                 style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+    content = f"""
+    <h2 style="color:#333;margin:0 0 16px;font-size:20px;">
+      Bienvenue, {display_name} ! 🎉
+    </h2>
 
-            <!-- Header -->
-            <tr>
-              <td style="background:linear-gradient(135deg,#26A69A 0%,#00897B 100%);padding:32px 40px;text-align:center;">
-                <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;">🌴 TropicalCorner</h1>
-              </td>
-            </tr>
+    <p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 16px;">
+      Bonne nouvelle : votre compte Korum vient d'être <strong>activé</strong> par notre équipe.
+    </p>
 
-            <!-- Body -->
-            <tr>
-              <td style="padding:40px;">
-                <h2 style="color:#333;margin:0 0 16px;font-size:20px;">
-                  Bienvenue, {display_name} ! 🎉
-                </h2>
+    <p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 24px;">
+      Vous pouvez dès maintenant vous connecter et commencer à recommander des talents
+      ou à publier des offres d'emploi.
+    </p>
 
-                <p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 16px;">
-                  Bonne nouvelle : votre compte TropicalCorner vient d'être <strong>activé</strong> par notre équipe.
-                </p>
+    {_cta_button(login_url, "Se connecter")}
 
-                <p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 24px;">
-                  Vous pouvez dès maintenant vous connecter et commencer à recommander des talents
-                  ou à publier des offres d'emploi.
-                </p>
-
-                <!-- CTA -->
-                <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
-                  <tr><td align="center">
-                    <a href="{login_url}"
-                       style="display:inline-block;background:#26A69A;color:#ffffff;text-decoration:none;
-                              padding:14px 40px;border-radius:50px;font-size:16px;font-weight:700;">
-                      Se connecter
-                    </a>
-                  </td></tr>
-                </table>
-
-                <p style="color:#999;font-size:13px;line-height:1.5;margin:0;">
-                  Si vous n'êtes pas à l'origine de cette inscription, ignorez cet email.
-                </p>
-              </td>
-            </tr>
-
-            <!-- Footer -->
-            <tr>
-              <td style="background:#fafafa;padding:24px 40px;text-align:center;border-top:1px solid #eee;">
-                <p style="color:#aaa;font-size:12px;margin:0;">
-                  © 2026 TropicalCorner · Bienvenue dans la communauté 🌴
-                </p>
-              </td>
-            </tr>
-
-          </table>
-        </td></tr>
-      </table>
-    </body>
-    </html>
+    <p style="color:#999;font-size:13px;line-height:1.5;margin:0;">
+      Si vous n'êtes pas à l'origine de cette inscription, ignorez cet email.
+    </p>
     """
 
     return send_email(
         to=email,
         subject=subject,
-        html=html,
+        html=_render_email(content, footer="© 2026 Korum · Bienvenue dans la communauté 🌴"),
     )
