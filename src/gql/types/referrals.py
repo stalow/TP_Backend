@@ -1,6 +1,31 @@
+import re
+
 from ariadne_graphql_modules import ObjectType, gql, DeferredType, InputType, convert_case
 
 from django.utils import timezone
+
+
+def parse_reward_amount(display_str: str) -> float:
+    """Parse a reward display string into a numeric amount.
+    
+    Handles formats like:
+      - "€1,500"  / "1500€"
+      - "CHF 5'000" / "CHF 8'000"
+      - "1500 eur" / "1500 chf"
+      - "€1 500" (space separator)
+    """
+    if not display_str:
+        return 0.0
+    # Remove currency symbols and codes
+    cleaned = re.sub(r'[€$£]', '', display_str)
+    cleaned = re.sub(r'\b(?:CHF|EUR|USD|GBP|eur|chf|usd|gbp)\b', '', cleaned, flags=re.IGNORECASE)
+    # Remove thousands separators: apostrophes, commas, spaces
+    cleaned = cleaned.replace("'", '').replace(',', '').replace('\u2019', '').strip()
+    cleaned = re.sub(r'\s+', '', cleaned)
+    try:
+        return float(cleaned)
+    except (ValueError, TypeError):
+        return 0.0
 
 from apps.jobs.models import JobOpening
 from apps.referrals.models import Candidate, Referral, ReferralStatusEvent, RewardOutcome, CandidateConsentToken
@@ -37,8 +62,8 @@ class CandidateType(ObjectType):
             email: String
             linkedinUrl: String
             yearsExperience: Int!
-            expertiseDomain: ExpertiseDomain!
-            searchCriteria: [String!]!
+            expertiseDomain: String!
+            searchCriteria: String!
             technicalSkills: [String!]!
             interpersonalSkills: [String!]!
             linkedinHeadline: String
@@ -249,8 +274,8 @@ class SubmitReferralInput(InputType):
             candidateEmail: String
             linkedinUrl: String
             yearsExperience: Int!
-            expertiseDomain: ExpertiseDomain!
-            searchCriteria: [String!]!
+            expertiseDomain: String!
+            searchCriteria: String!
             technicalSkills: [String!]!
             interpersonalSkills: [String!]!
             consentConfirmed: Boolean!
@@ -333,6 +358,9 @@ class Query(ObjectType):
             referral = Referral.objects.select_related(
                 'candidate', 'job_opening', 'referrer'
             ).get(id=db_id)
+            if referral.status == "SUBMITTED":
+                referral.status="REVIEWED"
+                referral.save()
         except Referral.DoesNotExist:
             return None
 
@@ -441,12 +469,7 @@ class Query(ObjectType):
         pending_balance = 0
 
         for reward in rewards:
-            # Extract amount from reward_display_snapshot (e.g., "€1,500" -> 1500)
-            amount_str = reward.reward_display_snapshot.replace('€', '').replace(',', '').strip()
-            try:
-                amount = float(amount_str)
-            except ValueError:
-                amount = 0
+            amount = parse_reward_amount(reward.reward_display_snapshot)
 
             total_earned += amount
 
@@ -458,11 +481,7 @@ class Query(ObjectType):
         # Format rewards for response
         rewards_list = []
         for reward in rewards:
-            amount_str = reward.reward_display_snapshot.replace('€', '').replace(',', '').strip()
-            try:
-                amount = float(amount_str)
-            except ValueError:
-                amount = 0
+            amount = parse_reward_amount(reward.reward_display_snapshot)
 
             rewards_list.append({
                 "id": reward.id,
@@ -475,11 +494,11 @@ class Query(ObjectType):
             })
 
         return {
-            "totalEarned": f"€{total_earned:,.0f}",
+            "totalEarned": f"CHF {total_earned:,.0f}".replace(',', "'"),
             "totalEarnedAmount": total_earned,
-            "availableBalance": f"€{available_balance:,.0f}",
+            "availableBalance": f"CHF {available_balance:,.0f}".replace(',', "'"),
             "availableBalanceAmount": available_balance,
-            "pendingBalance": f"€{pending_balance:,.0f}",
+            "pendingBalance": f"CHF {pending_balance:,.0f}".replace(',', "'"),
             "pendingBalanceAmount": pending_balance,
             "rewards": rewards_list,
         }
@@ -519,10 +538,10 @@ class Mutation(ObjectType):
         if job.status != JobOpening.Status.OPEN:
             raise TropicalCornerError("Job is not open for referrals", code="JOB_CLOSED")
 
-        # Validation des critères de recherche (3 requis)
-        search_criteria = input.get("searchCriteria", [])
-        if len(search_criteria) != 3:
-            raise TropicalCornerError("Exactly 3 search criteria are required", code="VALIDATION_ERROR")
+        # Validation des critères de recherche
+        search_criteria = input.get("searchCriteria", "").strip()
+        # if len(search_criteria) != 3:
+        #     raise TropicalCornerError("Exactly 3 search criteria are required", code="VALIDATION_ERROR")
 
         # Validation des compétences (au moins 1 de chaque)
         technical_skills = input.get("technicalSkills", [])
@@ -694,11 +713,7 @@ class Mutation(ObjectType):
 
         available_balance = 0
         for reward in rewards:
-            amount_str = reward.reward_display_snapshot.replace('€', '').replace(',', '').strip()
-            try:
-                available_balance += float(amount_str)
-            except ValueError:
-                pass
+            available_balance += parse_reward_amount(reward.reward_display_snapshot)
 
         if amount > available_balance:
             raise TropicalCornerError(

@@ -5,6 +5,7 @@ from common.errors import TropicalCornerError
 
 from apps.jobs.models import JobOpening
 from apps.referrals.models import Referral, RewardOutcome
+from gql.types.referrals import parse_reward_amount
 
 from gql.node import encode_global_id
 
@@ -164,13 +165,9 @@ class Query(ObjectType):
         # Total rewards amount
         total_rewards_amount = 0
         for reward in RewardOutcome.objects.filter(referral__referrer=user):
-            amount_str = reward.reward_display_snapshot.replace('€', '').replace(',', '').strip()
-            try:
-                total_rewards_amount += float(amount_str)
-            except ValueError:
-                pass
+            total_rewards_amount += parse_reward_amount(reward.reward_display_snapshot)
         
-        earned_rewards_display = f"€{total_rewards_amount:,.0f}"
+        earned_rewards_display = f"CHF {total_rewards_amount:,.0f}".replace(',', "'")
         
         # Recent referrals (last 10)
         recent_referrals = user_referrals.select_related(
@@ -247,11 +244,11 @@ class Query(ObjectType):
                 impact_messages.append(f"Taux de réussite impressionnant : {success_rate:.0f}% de vos recommandations sont embauchées !")
         
         # Random ego-boosting metrics
-        network_value = random.randint(50, 200)
-        impact_messages.append(f"La valeur de votre réseau est estimée à {network_value} contacts qualifiés")
+        # network_value = random.randint(50, 200)
+        # impact_messages.append(f"La valeur de votre réseau est estimée à {network_value} contacts qualifiés")
         
-        ranking = random.randint(5, 25)
-        impact_messages.append(f"Vous êtes dans le top {ranking}% des référents les plus actifs !")
+        # ranking = random.randint(5, 25)
+        # impact_messages.append(f"Vous êtes dans le top {ranking}% des référents les plus actifs !")
         
         # Default motivational message if none
         if not motivational_messages:

@@ -44,11 +44,9 @@ class JobOpeningType(ObjectType):
             id: ID!
             organization: Organization!
             
-            "Contexte de l'entreprise"
             companyContext: CompanyContext
             shareholderStructure: ShareholderStructure
             
-            "Contexte du mandat"
             mandateContext: MandateContext
             
             "Localisation"
@@ -57,20 +55,15 @@ class JobOpeningType(ObjectType):
             locationCountry: String
             locationDisplay: String!
             
-            "Secteur d'activité"
             activitySector: ActivitySector
             
-            "Enjeux clefs (3 max)"
             keyChallenges: [KeyChallenge!]!
             
-            "Poste"
             title: String!
             description: String!
             
-            "Expertise métier"
             expertiseDomain: ExpertiseDomain
             
-            "Compétences relationnelles (3 max)"
             interpersonalSkills: [InterpersonalSkill!]!
             
             "Expérience"
@@ -133,7 +126,7 @@ class JobOpeningType(ObjectType):
     @staticmethod
     def resolve_referral_count(job_opening, info):
         """Return the number of referrals for this job opening."""
-        return Referral.objects.filter(job_opening_id=job_opening.id).count()
+        return Referral.objects.filter(job_opening_id=job_opening.id).exclude(status='PENDING_CONSENT').count()
 
     @staticmethod
     def resolve_referrals(job_opening, info):
