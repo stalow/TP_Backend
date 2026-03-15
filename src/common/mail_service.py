@@ -8,6 +8,7 @@ Tous les emails utilisent un template HTML de base commun
 """
 
 import logging
+from html import escape
 from pathlib import Path
 from typing import Optional
 
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Chemin du template de base (à côté de ce fichier)
 _BASE_TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "email_base.html"
+_TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 _DEFAULT_FOOTER = "© 2026 Korum · La cooptation simplifiée 🌴"
 
 
@@ -48,6 +50,15 @@ def _render_email(content: str, footer: str | None = None) -> str:
     return html
 
 
+def _render_content_template(template_name: str, context: dict[str, str]) -> str:
+    """Rend un template HTML de contenu en remplaçant des placeholders {{KEY}}."""
+    template_path = _TEMPLATES_DIR / template_name
+    html = template_path.read_text(encoding="utf-8")
+    for key, value in context.items():
+        html = html.replace(f"{{{{{key}}}}}", value)
+    return html
+
+
 def _cta_button(href: str, label: str) -> str:
     """Renvoie le HTML d'un bouton d'appel à l'action centré."""
     return f"""
@@ -61,6 +72,26 @@ def _cta_button(href: str, label: str) -> str:
       </td></tr>
     </table>
     """
+
+
+def _build_info_section(title: str, rows: list[tuple[str, str]]) -> str:
+    """Construit un bloc d'information compact pour les emails."""
+    if not rows:
+        return ""
+
+    items = "".join(
+        f"<li style=\"margin:0 0 6px;\"><strong>{escape(label)} :</strong> {escape(value)}</li>"
+        for label, value in rows
+    )
+
+    return (
+        "<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" "
+        "style=\"margin:0 0 18px;background:#f8fffe;border:1px solid #d4efeb;border-radius:12px;\">"
+        "<tr><td style=\"padding:14px 16px;\">"
+        f"<p style=\"margin:0 0 10px;color:#00695c;font-size:14px;font-weight:700;\">{escape(title)}</p>"
+        f"<ul style=\"margin:0;padding-left:18px;color:#455a64;font-size:14px;line-height:1.5;\">{items}</ul>"
+        "</td></tr></table>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -125,6 +156,13 @@ def send_candidate_consent_email(
     referrer_name: str,
     organization_name: str,
     consent_token: str,
+    referrer_email: str | None = None,
+    referrer_experience_years: int | None = None,
+    job_location: str | None = None,
+    job_contract_types: list[str] | None = None,
+    job_experience_level: str | None = None,
+    job_reward: str | None = None,
+    job_description: str | None = None,
 ) -> dict:
     """
     Envoie un email au candidat référé pour lui demander de confirmer
@@ -140,33 +178,42 @@ def send_candidate_consent_email(
         f"« {job_title} » — {organization_name}"
     )
 
-    content = f"""
-    <h2 style="color:#333;margin:0 0 16px;font-size:20px;">
-      Bonjour {candidate_name} 👋
-    </h2>
+    referrer_rows: list[tuple[str, str]] = [("Nom", referrer_name)]
+    if referrer_email:
+        referrer_rows.append(("Email", referrer_email))
+    if referrer_experience_years is not None:
+        suffix = "an" if referrer_experience_years == 1 else "ans"
+        referrer_rows.append(("Experience", f"{referrer_experience_years} {suffix}"))
 
-    <p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 16px;">
-      <strong>{referrer_name}</strong> vous a recommandé pour le poste
-      <strong>« {job_title} »</strong> chez <strong>{organization_name}</strong>.
-    </p>
+    job_rows: list[tuple[str, str]] = []
+    if job_location:
+        job_rows.append(("Localisation", job_location))
+    if job_contract_types:
+        job_rows.append(("Type de contrat", ", ".join(job_contract_types)))
+    if job_experience_level:
+        job_rows.append(("Niveau d'experience", job_experience_level))
+    if job_reward:
+        job_rows.append(("Prime de cooptation", job_reward))
+    if job_description:
+        job_rows.append(("Apercu du poste", job_description))
 
-    <p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 24px;">
-      Avant que votre candidature ne soit prise en compte par le recruteur,
-      nous avons besoin de votre accord. Cliquez ci-dessous pour
-      <strong>accepter</strong> ou <strong>décliner</strong> cette proposition.
-    </p>
-
-    {_cta_button(consent_url, "Voir la proposition et choisir")}
-
-    <p style="color:#999;font-size:13px;line-height:1.5;margin:0 0 8px;">
-      Ce lien est valable <strong>7 jours</strong>. Si vous ne faites rien,
-      la recommandation sera automatiquement annulée.
-    </p>
-
-    <p style="color:#999;font-size:13px;line-height:1.5;margin:0;">
-      Si vous n'êtes pas la bonne personne, ignorez simplement cet email.
-    </p>
-    """
+    content = _render_content_template(
+        "candidate_consent_email.html",
+        {
+            "CANDIDATE_NAME": escape(candidate_name),
+            "REFERRER_NAME": escape(referrer_name),
+            "JOB_TITLE": escape(job_title),
+            "ORGANIZATION_NAME": escape(organization_name),
+            "REFERRER_DETAILS_SECTION": _build_info_section(
+                "Votre contact chez Korum", referrer_rows
+            ),
+            "JOB_DETAILS_SECTION": _build_info_section(
+                "Quelques details sur le poste", job_rows
+            ),
+            "CONSENT_CTA": _cta_button(consent_url, "Voir la proposition et choisir"),
+            "CONSENT_URL": escape(consent_url),
+        },
+    )
 
     footer = (
         "© 2026 Korum · Cet email a été envoyé car quelqu'un "
@@ -190,29 +237,52 @@ def send_account_activation_email(display_name: str, email: str) -> dict:
 
     subject = "Votre compte Korum a été activé 🎉"
 
-    content = f"""
-    <h2 style="color:#333;margin:0 0 16px;font-size:20px;">
-      Bienvenue, {display_name} ! 🎉
-    </h2>
-
-    <p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 16px;">
-      Bonne nouvelle : votre compte Korum vient d'être <strong>activé</strong> par notre équipe.
-    </p>
-
-    <p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 24px;">
-      Vous pouvez dès maintenant vous connecter et commencer à recommander des talents
-      ou à publier des offres d'emploi.
-    </p>
-
-    {_cta_button(login_url, "Se connecter")}
-
-    <p style="color:#999;font-size:13px;line-height:1.5;margin:0;">
-      Si vous n'êtes pas à l'origine de cette inscription, ignorez cet email.
-    </p>
-    """
+    content = _render_content_template(
+        "account_activation_email.html",
+        {
+            "DISPLAY_NAME": escape(display_name),
+            "LOGIN_CTA": _cta_button(login_url, "Se connecter"),
+            "LOGIN_URL": escape(login_url),
+        },
+    )
 
     return send_email(
         to=email,
         subject=subject,
         html=_render_email(content, footer="© 2026 Korum · Bienvenue dans la communauté 🌴"),
+    )
+
+
+def send_new_opportunity_email(
+    contact_name: str,
+    contact_email: str,
+    job_title: str,
+    job_sector: str,
+    job_location: str,
+) -> dict:
+    """Envoie un email pour informer un contact d'une nouvelle opportunite."""
+    frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
+    login_url = f"{frontend_url}/login"
+
+    subject = f"Nouvelle opportunite C-level: {job_title}"
+
+    content = _render_content_template(
+        "new_opportunity_email.html",
+        {
+            "CONTACT_NAME": escape(contact_name),
+            "JOB_TITLE": escape(job_title),
+            "JOB_SECTOR": escape(job_sector),
+            "JOB_LOCATION": escape(job_location),
+            "OPPORTUNITY_CTA": _cta_button(login_url, "Se connecter et recommander"),
+            "LOGIN_URL": escape(login_url),
+        },
+    )
+
+    return send_email(
+        to=contact_email,
+        subject=subject,
+        html=_render_email(
+            content,
+            footer="© 2026 Korum · Merci de faire vivre un reseau d'exception.",
+        ),
     )

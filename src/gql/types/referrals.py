@@ -627,6 +627,17 @@ class Mutation(ObjectType):
         # Send consent email if candidate has an email
         if needs_consent:
             consent_token = CandidateConsentToken.objects.create(referral=referral)
+            contract_type_labels = []
+            for contract_type in (job.contract_types or []):
+                try:
+                    contract_type_labels.append(JobOpening.ContractType(contract_type).label)
+                except ValueError:
+                    contract_type_labels.append(contract_type)
+
+            job_description_preview = (job.description or "").strip()
+            if len(job_description_preview) > 280:
+                job_description_preview = f"{job_description_preview[:277].rstrip()}..."
+
             try:
                 send_candidate_consent_email(
                     candidate_name=candidate.full_name,
@@ -635,6 +646,13 @@ class Mutation(ObjectType):
                     referrer_name=user.display_name or user.email,
                     organization_name=job.organization.name,
                     consent_token=str(consent_token.token),
+                    referrer_email=user.email,
+                    referrer_experience_years=user.years_of_experience,
+                    job_location=job.location_display,
+                    job_contract_types=contract_type_labels,
+                    job_experience_level=job.get_experience_level_display() if job.experience_level else None,
+                    job_reward=job.reward_display,
+                    job_description=job_description_preview,
                 )
             except Exception as e:
                 import logging
