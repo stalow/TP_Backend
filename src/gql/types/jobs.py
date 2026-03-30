@@ -1,3 +1,5 @@
+import re
+
 from ariadne_graphql_modules import ObjectType, gql, DeferredType, InputType, convert_case
 
 from apps.jobs.models import JobOpening
@@ -6,6 +8,22 @@ from apps.referrals.models import Referral
 from common.errors import TropicalCornerError
 from gql.auth import require_auth
 from gql.node import encode_global_id, decode_global_id, fetch_node
+
+
+def parse_points(value: str | None) -> int:
+    if not value:
+        return 0
+    digits = re.sub(r"[^0-9]", "", value)
+    if not digits:
+        return 0
+    try:
+        return int(digits)
+    except (TypeError, ValueError):
+        return 0
+
+
+def format_points(points: int) -> str:
+    return f"{points:,} Points".replace(",", "'")
 
 
 class RecruitmentProcessStepType(ObjectType):
@@ -85,6 +103,7 @@ class JobOpeningType(ObjectType):
             "Métadonnées"
             publishedDate: String!
             status: JobStatus!
+            rewardPoints: Int!
             rewardDisplay: String!
             referralCount: Int!
             referrals: [Referral!]!
@@ -208,6 +227,7 @@ class CreateJobOpeningInput(InputType):
             
             "Récompense"
             rewardDisplay: String!
+            rewardPoints: Int
         }
         """
     )
@@ -277,6 +297,7 @@ class UpdateJobOpeningInput(InputType):
             
             "Récompense et statut"
             rewardDisplay: String
+            rewardPoints: Int
             status: JobStatus
         }
         """
@@ -472,8 +493,13 @@ class Mutation(ObjectType):
             # Process recrutement
             recruitment_process=input.get("recruitmentProcess", []),
             # Récompense
-            reward_display=input.get("rewardDisplay", ""),
+            reward_points=input.get("rewardPoints")
+            if input.get("rewardPoints") is not None
+            else parse_points(input.get("rewardDisplay")),
+            reward_display="",
         )
+        job.reward_display = format_points(job.reward_points)
+        job.save(update_fields=["reward_display"])
         return job
 
     @staticmethod
@@ -567,7 +593,12 @@ class Mutation(ObjectType):
             job.recruitment_process = input["recruitmentProcess"] or []
 
         if "rewardDisplay" in input and input["rewardDisplay"] is not None:
-            job.reward_display = input["rewardDisplay"]
+            job.reward_points = parse_points(input["rewardDisplay"])
+            job.reward_display = format_points(job.reward_points)
+
+        if "rewardPoints" in input and input["rewardPoints"] is not None:
+            job.reward_points = input["rewardPoints"]
+            job.reward_display = format_points(job.reward_points)
 
         if "status" in input and input["status"] is not None:
             valid_statuses = [s.value for s in JobOpening.Status]

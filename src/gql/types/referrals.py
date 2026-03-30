@@ -5,27 +5,21 @@ from ariadne_graphql_modules import ObjectType, gql, DeferredType, InputType, co
 from django.utils import timezone
 
 
-def parse_reward_amount(display_str: str) -> float:
-    """Parse a reward display string into a numeric amount.
-    
-    Handles formats like:
-      - "€1,500"  / "1500€"
-      - "CHF 5'000" / "CHF 8'000"
-      - "1500 eur" / "1500 chf"
-      - "€1 500" (space separator)
-    """
+def parse_reward_points(display_str: str) -> int:
+    """Extract an integer number of points from a reward display string."""
     if not display_str:
-        return 0.0
-    # Remove currency symbols and codes
-    cleaned = re.sub(r'[€$£]', '', display_str)
-    cleaned = re.sub(r'\b(?:CHF|EUR|USD|GBP|eur|chf|usd|gbp)\b', '', cleaned, flags=re.IGNORECASE)
-    # Remove thousands separators: apostrophes, commas, spaces
-    cleaned = cleaned.replace("'", '').replace(',', '').replace('\u2019', '').strip()
-    cleaned = re.sub(r'\s+', '', cleaned)
+        return 0
+    cleaned = re.sub(r"[^0-9]", "", display_str)
+    if not cleaned:
+        return 0
     try:
-        return float(cleaned)
+        return int(cleaned)
     except (ValueError, TypeError):
-        return 0.0
+        return 0
+
+
+def format_points_display(amount: int) -> str:
+    return f"{amount:,} Points".replace(",", "'")
 
 from apps.jobs.models import JobOpening
 from apps.referrals.models import Candidate, Referral, ReferralStatusEvent, RewardOutcome, CandidateConsentToken
@@ -196,6 +190,7 @@ class RewardOutcomeType(ObjectType):
         type RewardOutcome implements Node {
             id: ID!
             referral: Referral!
+            rewardPoints: Int!
             rewardDisplaySnapshot: String!
             status: RewardStatus!
             createdAt: String!
@@ -223,7 +218,7 @@ class RewardType(ObjectType):
         type Reward {
             id: ID!
             rewardDisplay: String!
-            rewardAmount: Float!
+            rewardAmount: Int!
             status: String!
             earnedAt: String
             paidAt: String
@@ -240,11 +235,11 @@ class MyRewardsType(ObjectType):
         '''
         type MyRewards {
             totalEarned: String!
-            totalEarnedAmount: Float!
+            totalEarnedAmount: Int!
             availableBalance: String!
-            availableBalanceAmount: Float!
+            availableBalanceAmount: Int!
             pendingBalance: String!
-            pendingBalanceAmount: Float!
+            pendingBalanceAmount: Int!
             rewards: [Reward!]!
         }
     '''
@@ -312,7 +307,7 @@ class CashOutInput(InputType):
     __schema__ = gql(
         """
         input CashOutInput {
-            amount: Float!
+            amount: Int!
             paymentMethod: String!
             paymentDetails: GenericScalar
             notes: String
@@ -469,7 +464,7 @@ class Query(ObjectType):
         pending_balance = 0
 
         for reward in rewards:
-            amount = parse_reward_amount(reward.reward_display_snapshot)
+            amount = reward.reward_points or parse_reward_points(reward.reward_display_snapshot)
 
             total_earned += amount
 
@@ -481,11 +476,11 @@ class Query(ObjectType):
         # Format rewards for response
         rewards_list = []
         for reward in rewards:
-            amount = parse_reward_amount(reward.reward_display_snapshot)
+            amount = reward.reward_points or parse_reward_points(reward.reward_display_snapshot)
 
             rewards_list.append({
                 "id": reward.id,
-                "rewardDisplay": reward.reward_display_snapshot,
+                "rewardDisplay": format_points_display(amount),
                 "rewardAmount": amount,
                 "status": reward.status.upper(),
                 "earnedAt": reward.created_at.isoformat(),
@@ -494,11 +489,11 @@ class Query(ObjectType):
             })
 
         return {
-            "totalEarned": f"CHF {total_earned:,.0f}".replace(',', "'"),
+            "totalEarned": format_points_display(total_earned),
             "totalEarnedAmount": total_earned,
-            "availableBalance": f"CHF {available_balance:,.0f}".replace(',', "'"),
+            "availableBalance": format_points_display(available_balance),
             "availableBalanceAmount": available_balance,
-            "pendingBalance": f"CHF {pending_balance:,.0f}".replace(',', "'"),
+            "pendingBalance": format_points_display(pending_balance),
             "pendingBalanceAmount": pending_balance,
             "rewards": rewards_list,
         }
@@ -639,6 +634,7 @@ class Mutation(ObjectType):
                 job_description_preview = f"{job_description_preview[:277].rstrip()}..."
 
             try:
+                job_reward_points = job.reward_points or parse_reward_points(job.reward_display)
                 send_candidate_consent_email(
                     candidate_name=candidate.full_name,
                     candidate_email=candidate.email,
@@ -651,7 +647,7 @@ class Mutation(ObjectType):
                     job_location=job.location_display,
                     job_contract_types=contract_type_labels,
                     job_experience_level=job.get_experience_level_display() if job.experience_level else None,
-                    job_reward=job.reward_display,
+                    job_reward=format_points_display(job_reward_points),
                     job_description=job_description_preview,
                 )
             except Exception as e:
@@ -704,7 +700,8 @@ class Mutation(ObjectType):
                 referral=referral,
                 defaults={
                     "organization": referral.organization,
-                    "reward_display_snapshot": referral.job_opening.reward_display,
+                    "reward_points": referral.job_opening.reward_points,
+                    "reward_display_snapshot": format_points_display(referral.job_opening.reward_points),
                     "status": RewardOutcome.Status.EARNED,
                 },
             )
@@ -721,7 +718,7 @@ class Mutation(ObjectType):
         # Validate amount
         amount = input.get("amount", 0)
         if amount < 50:
-            raise TropicalCornerError("Minimum cash out amount is €50", code="AMOUNT_TOO_LOW")
+            raise TropicalCornerError("Minimum cash out amount is 50 Points", code="AMOUNT_TOO_LOW")
 
         # Check available balance
         rewards = RewardOutcome.objects.filter(
@@ -731,11 +728,11 @@ class Mutation(ObjectType):
 
         available_balance = 0
         for reward in rewards:
-            available_balance += parse_reward_amount(reward.reward_display_snapshot)
+            available_balance += reward.reward_points or parse_reward_points(reward.reward_display_snapshot)
 
         if amount > available_balance:
             raise TropicalCornerError(
-                f"Insufficient balance. Available: €{available_balance}",
+                f"Insufficient balance. Available: {available_balance} Points",
                 code="INSUFFICIENT_BALANCE"
             )
 

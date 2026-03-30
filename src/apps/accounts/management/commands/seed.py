@@ -135,7 +135,8 @@ class Command(BaseCommand):
                 ],
                 "published_date": today - timedelta(days=10),
                 "status": JobOpening.Status.OPEN,
-                "reward_display": "CHF 5'000",
+                "reward_points": 5000,
+                "reward_display": "5'000 Points",
                 "created_by": admin_member,
             },
         )
@@ -187,7 +188,8 @@ class Command(BaseCommand):
                 ],
                 "published_date": today - timedelta(days=20),
                 "status": JobOpening.Status.OPEN,
-                "reward_display": "CHF 8'000",
+                "reward_points": 8000,
+                "reward_display": "8'000 Points",
                 "created_by": recruiter_member,
             },
         )
@@ -240,7 +242,8 @@ class Command(BaseCommand):
                 ],
                 "published_date": today - timedelta(days=45),
                 "status": JobOpening.Status.CLOSED,
-                "reward_display": "CHF 4'000",
+                "reward_points": 4000,
+                "reward_display": "4'000 Points",
                 "created_by": recruiter_member,
             },
         )
@@ -293,7 +296,8 @@ class Command(BaseCommand):
                 ],
                 "published_date": today - timedelta(days=5),
                 "status": JobOpening.Status.OPEN,
-                "reward_display": "CHF 6'000",
+                "reward_points": 6000,
+                "reward_display": "6'000 Points",
                 "created_by": admin_member,
             },
         )
@@ -346,7 +350,8 @@ class Command(BaseCommand):
                 ],
                 "published_date": today - timedelta(days=3),
                 "status": JobOpening.Status.OPEN,
-                "reward_display": "CHF 3'000",
+                "reward_points": 3000,
+                "reward_display": "3'000 Points",
                 "created_by": admin_member,
             },
         )
@@ -398,7 +403,8 @@ class Command(BaseCommand):
                 ],
                 "published_date": today - timedelta(days=15),
                 "status": JobOpening.Status.OPEN,
-                "reward_display": "CHF 5'500",
+                "reward_points": 5500,
+                "reward_display": "5'500 Points",
                 "created_by": recruiter_member,
             },
         )
@@ -495,6 +501,7 @@ class Command(BaseCommand):
                 referral=referral2,
                 defaults={
                     "organization": org1,
+                    "reward_points": job2.reward_points,
                     "reward_display_snapshot": job2.reward_display,
                     "status": RewardOutcome.Status.EARNED,
                 },

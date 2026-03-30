@@ -5,7 +5,7 @@ from common.errors import TropicalCornerError
 
 from apps.jobs.models import JobOpening
 from apps.referrals.models import Referral, RewardOutcome
-from gql.types.referrals import parse_reward_amount
+from gql.types.referrals import parse_reward_points, format_points_display
 
 from gql.node import encode_global_id
 
@@ -85,7 +85,7 @@ class DashboardType(ObjectType):
             acceptedReferralsCount: Int!
             hiredReferralsCount: Int!
             earnedRewardsDisplay: String!
-            earnedRewardsAmount: Float!
+            earnedRewardsAmount: Int!
             motivationalMessage: String!
             impactMessage: String!
             recentReferrals: [Referral!]!
@@ -137,7 +137,7 @@ class Query(ObjectType):
                 "submittedReferralsCount": 0,
                 "acceptedReferralsCount": 0,
                 "hiredReferralsCount": 0,
-                "earnedRewardsDisplay": "€0",
+                "earnedRewardsDisplay": "0 Points",
                 "motivationalMessage": "Connectez-vous pour voir vos statistiques !",
                 "impactMessage": "",
                 "recentReferrals": [],
@@ -165,9 +165,9 @@ class Query(ObjectType):
         # Total rewards amount
         total_rewards_amount = 0
         for reward in RewardOutcome.objects.filter(referral__referrer=user):
-            total_rewards_amount += parse_reward_amount(reward.reward_display_snapshot)
+            total_rewards_amount += reward.reward_points or parse_reward_points(reward.reward_display_snapshot)
         
-        earned_rewards_display = f"CHF {total_rewards_amount:,.0f}".replace(',', "'")
+        earned_rewards_display = format_points_display(total_rewards_amount)
         
         # Recent referrals (last 10)
         recent_referrals = user_referrals.select_related(

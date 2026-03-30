@@ -35,5 +35,5 @@ class ReferralStatusEventAdmin(admin.ModelAdmin):
 
 @admin.register(RewardOutcome)
 class RewardOutcomeAdmin(admin.ModelAdmin):
-    list_display = ("referral", "reward_display_snapshot", "status", "created_at")
+    list_display = ("referral", "reward_points", "reward_display_snapshot", "status", "created_at")
     list_filter = ("status", "organization")

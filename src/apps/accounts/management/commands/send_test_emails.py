@@ -58,7 +58,7 @@ class Command(BaseCommand):
                 job_location="Geneve, Suisse",
                 job_contract_types=["CDI", "Temps plein"],
                 job_experience_level="Top Management",
-                job_reward="CHF 5'000",
+                job_reward="5'000 Points",
                 job_description=(
                     "Pilotage de la strategie de croissance, management transversal "
                     "et acceleration commerciale sur le marche europeen."

@@ -174,6 +174,7 @@ class RewardOutcome(models.Model):
     referral = models.OneToOneField(
         Referral, on_delete=models.CASCADE, related_name="reward_outcome"
     )
+    reward_points = models.IntegerField(default=0)
     reward_display_snapshot = models.CharField(max_length=100)
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.PENDING
@@ -188,7 +189,7 @@ class RewardOutcome(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"Reward for {self.referral}: {self.reward_display_snapshot}"
+        return f"Reward for {self.referral}: {self.reward_points} Points"
 
 
 class CandidateScore(models.Model):

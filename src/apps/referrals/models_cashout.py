@@ -22,7 +22,7 @@ class CashOutRequest(models.Model):
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="cash_out_requests"
     )
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    amount = models.IntegerField()
     payment_method = models.CharField(max_length=50, choices=PaymentMethod.choices)
     payment_details = models.JSONField(default=dict)  # Bank account, PayPal email, etc.
     notes = models.TextField(blank=True, null=True)
@@ -39,4 +39,4 @@ class CashOutRequest(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"Cash out €{self.amount} for {self.user.email} - {self.status}"
+        return f"Cash out {self.amount} Points for {self.user.email} - {self.status}"

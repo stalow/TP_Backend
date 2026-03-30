@@ -1,3 +1,5 @@
+import re
+
 from django.db import models
 
 from apps.organizations.models import Organization, OrganizationMember
@@ -11,6 +13,19 @@ class JobOpening(models.Model):
     class Status(models.TextChoices):
         OPEN = "OPEN", "Open"
         CLOSED = "CLOSED", "Closed"
+
+    @staticmethod
+    def parse_reward_points(value: str | None) -> int:
+        """Extract an integer number of points from a free-form reward string."""
+        if not value:
+            return 0
+        digits = re.sub(r"[^0-9]", "", value)
+        if not digits:
+            return 0
+        try:
+            return int(digits)
+        except (TypeError, ValueError):
+            return 0
 
     # === Contexte d'entreprise ===
     class CompanyContext(models.TextChoices):
@@ -265,7 +280,8 @@ class JobOpening(models.Model):
     # === Métadonnées ===
     published_date = models.DateField(auto_now_add=True, null=True, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
-    reward_display = models.CharField(max_length=100, help_text="Récompense affichée (ex: €1,500)")
+    reward_points = models.IntegerField(default=0, help_text="Récompense en points")
+    reward_display = models.CharField(max_length=100, help_text="Champ legacy d'affichage (ex: 1500 Points)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
