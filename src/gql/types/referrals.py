@@ -318,6 +318,24 @@ class CashOutInput(InputType):
     __requires__ = [DeferredType("GenericScalar")]
 
 
+class LinkedInProfileDataType(ObjectType):
+    __schema__ = gql(
+        '''
+        type LinkedInProfileData {
+            success: Boolean!
+            errorMessage: String
+            fullName: String
+            yearsExperience: Int
+            expertiseDomain: String
+            technicalSkills: [String!]
+            interpersonalSkills: [String!]
+            searchCriteria: String
+        }
+        '''
+    )
+    __aliases__ = convert_case
+
+
 class Query(ObjectType):
     __schema__ = gql(
         '''
@@ -326,6 +344,7 @@ class Query(ObjectType):
             referrals(jobId: ID, status: ReferralStatus, first: Int = 20, after: String): [Referral!]!
             myReferrals(status: ReferralStatus, first: Int = 20, after: String): [Referral!]!
             myRewards: MyRewards!
+            parseLinkedinProfile(linkedinUrl: String!): LinkedInProfileData!
         }
         '''
     )
@@ -335,6 +354,7 @@ class Query(ObjectType):
         ReferralType,
         DeferredType('ReferralStatus'),
         MyRewardsType,
+        LinkedInProfileDataType,
     ]
 
     @staticmethod
@@ -496,6 +516,63 @@ class Query(ObjectType):
             "pendingBalance": format_points_display(pending_balance),
             "pendingBalanceAmount": pending_balance,
             "rewards": rewards_list,
+        }
+
+    @staticmethod
+    def resolve_parse_linkedin_profile(obj, info, linkedinUrl):
+        """Scrape un profil LinkedIn et extrait les données candidat via IA pour pré-remplir le formulaire."""
+        import logging as _logging
+        _logger = _logging.getLogger(__name__)
+
+        require_auth(info)
+
+        _empty = {
+            "success": False,
+            "error_message": None,
+            "full_name": None,
+            "years_experience": None,
+            "expertise_domain": None,
+            "technical_skills": [],
+            "interpersonal_skills": [],
+            "search_criteria": None,
+        }
+
+        url = (linkedinUrl or "").strip()
+        if not url:
+            return {**_empty, "error_message": "L'URL LinkedIn est requise."}
+
+        try:
+            raw_profile = scrape_linkedin_profile(url)
+        except Exception as exc:
+            _logger.error(f"LinkedIn scraping failed for {url}: {exc}")
+            return {**_empty, "error_message": "Impossible de récupérer le profil LinkedIn. Vérifiez l'URL."}
+
+        has_data = any([
+            raw_profile.get("headline"),
+            raw_profile.get("summary"),
+            raw_profile.get("experience"),
+            raw_profile.get("skills"),
+        ])
+
+        if not has_data:
+            return {**_empty, "error_message": "Aucune donnée trouvée sur ce profil LinkedIn."}
+
+        try:
+            from apps.referrals.services.linkedin_profile_parser import extract_candidate_from_linkedin_profile
+            extracted = extract_candidate_from_linkedin_profile(raw_profile)
+        except Exception as exc:
+            _logger.error(f"AI extraction failed: {exc}")
+            return {**_empty, "error_message": "L'extraction automatique a échoué. Remplissez le formulaire manuellement."}
+
+        return {
+            "success": True,
+            "error_message": None,
+            "full_name": extracted.get("fullName"),
+            "years_experience": extracted.get("yearsExperience"),
+            "expertise_domain": extracted.get("expertiseDomain"),
+            "technical_skills": extracted.get("technicalSkills") or [],
+            "interpersonal_skills": extracted.get("interpersonalSkills") or [],
+            "search_criteria": extracted.get("searchCriteria"),
         }
 
 
@@ -756,9 +833,10 @@ class Mutation(ObjectType):
         }
 
 
-types = [ 
+types = [
     CandidateType,
     ReferralType,
+    LinkedInProfileDataType,
     ReferralStatusEventType,
     RewardOutcomeType,
     RewardType,

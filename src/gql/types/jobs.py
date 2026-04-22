@@ -322,9 +322,9 @@ class Query(ObjectType):
     __schema__ = gql(
         '''
         type Query {
-            jobOpenings(status: JobStatus, first: Int = 20, after: String): [JobOpening!]!
+            jobOpenings(status: JobStatus, expertiseDomain: ExpertiseDomain, first: Int = 20, after: String): [JobOpening!]!
             jobOpening(id: ID!): JobOpening
-            myJobs(status: JobStatus, first: Int = 20, after: String): [JobOpening!]!
+            myJobs(status: JobStatus, expertiseDomain: ExpertiseDomain, first: Int = 20, after: String): [JobOpening!]!
         }
         '''
     )
@@ -333,15 +333,18 @@ class Query(ObjectType):
     __requires__ = [
         JobOpeningType,
         DeferredType('JobStatus'),
+        DeferredType('ExpertiseDomain'),
     ]
 
     @staticmethod
-    def resolve_job_openings(obj, info, status=None, first=20, after=None):
+    def resolve_job_openings(obj, info, status=None, expertiseDomain=None, first=20, after=None):
         """List job openings in the active organization."""
         qs = JobOpening.objects.all()
 
         if status:
             qs = qs.filter(status=status)
+        if expertiseDomain:
+            qs = qs.filter(expertise_domain=expertiseDomain)
 
         qs = qs.order_by("-created_at")
 
@@ -364,7 +367,7 @@ class Query(ObjectType):
         return job_opening
 
     @staticmethod
-    def resolve_my_jobs(obj, info, status=None, first=20, after=None):
+    def resolve_my_jobs(obj, info, status=None, expertiseDomain=None, first=20, after=None):
         """List job openings created by the recruiter's organization."""
         user = info.context.get("request").user
         if user is None or not user.is_recruiter:
@@ -377,6 +380,8 @@ class Query(ObjectType):
 
         if status:
             qs = qs.filter(status=status)
+        if expertiseDomain:
+            qs = qs.filter(expertise_domain=expertiseDomain)
 
         qs = qs.order_by("-created_at")
 
