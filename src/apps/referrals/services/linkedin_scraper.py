@@ -144,8 +144,15 @@ def _scrape_with_coresignal(linkedin_url: str) -> Dict[str, Any]:
         data = response.json()
         print(data)
         
-        # Transformer les données Proxycurl dans notre format
+        full_name = (
+            data.get("full_name")
+            or f"{data.get('first_name', '')} {data.get('last_name', '')}".strip()
+            or None
+        )
+
+        # Transformer les données Coresignal dans notre format
         return {
+            "name": full_name,
             "headline": data.get("headline"),
             "summary": data.get("summary"),
             "experience": [

@@ -68,9 +68,9 @@ INSTRUCTIONS :
    HEALTH, HR, RD, TECH
 3. Extrais jusqu'à 8 compétences techniques (hard skills, outils, langages, méthodes).
 4. Extrais jusqu'à 5 compétences relationnelles / soft skills.
-5. Génère une phrase de 10-20 mots décrivant ce que ce candidat recherche probablement.
+5. Génère en français une phrase de 10-20 mots décrivant ce que ce candidat recherche probablement.
 
-Réponds UNIQUEMENT avec un JSON valide (sans markdown, sans ```):
+Réponds UNIQUEMENT avec un JSON valide et UNIQUEMENT en français (sans markdown, sans ```):
 {{"fullName": "<nom complet ou null>", "yearsExperience": <entier ou null>, "expertiseDomain": "<valeur enum ou null>", "technicalSkills": ["..."], "interpersonalSkills": ["..."], "searchCriteria": "<phrase ou null>"}}"""
 
 
@@ -107,7 +107,10 @@ def extract_candidate_from_linkedin_profile(
     # Valider et nettoyer chaque champ
     full_name = result.get("fullName")
     if not isinstance(full_name, str) or not full_name.strip():
-        full_name = None
+        # Fallback : utiliser le nom extrait directement par le scraper
+        full_name = raw_profile.get("name") or None
+    if isinstance(full_name, str):
+        full_name = full_name.strip() or None
 
     years_exp = result.get("yearsExperience")
     if not isinstance(years_exp, int) or years_exp < 0:
