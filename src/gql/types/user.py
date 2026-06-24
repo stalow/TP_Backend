@@ -48,6 +48,8 @@ class RegisterAccountInput(InputType):
             password: String!
             displayName: String!
             yearsOfExperience: Int!
+            currentPosition: String
+            linkedinUrl: String
             networkCountries: [String!]!
             networkCities: [String!]!
             expertiseAreas: [String!]!
@@ -385,6 +387,8 @@ class Mutation(ObjectType):
                 is_active=False,  # Compte inactif jusqu'à validation
                 is_referrer=True,  # Par défaut, nouvel utilisateur est referrer
                 years_of_experience=input.get("yearsOfExperience"),
+                current_position=input.get("currentPosition", ""),
+                linkedin_url=input.get("linkedinUrl", ""),
                 network_countries=input.get("networkCountries", []),
                 network_cities=input.get("networkCities", []),
                 expertise_areas=input.get("expertiseAreas", []),

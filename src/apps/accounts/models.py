@@ -19,6 +19,8 @@ class User(AbstractUser):
     
     # Onboarding fields
     years_of_experience = models.IntegerField(null=True, blank=True)
+    current_position = models.CharField(max_length=255, blank=True)
+    linkedin_url = models.URLField(blank=True)
     network_countries = models.JSONField(default=list, blank=True)  # List of country codes
     network_cities = models.JSONField(default=list, blank=True)  # List of city names
     expertise_areas = models.JSONField(default=list, blank=True)  # List of expertise areas
